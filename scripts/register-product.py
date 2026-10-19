@@ -56,9 +56,16 @@ def separate_callers(product, revision):
 on:
   workflow_dispatch:
     inputs:
+      build_selection:
+        description: Which build to publish
+        type: choice
+        default: Latest successful build
+        options:
+          - Latest successful build
+          - Specific build ID
       build_run_id:
-        description: Successful Build installers run ID to publish
-        required: true
+        description: Only for Specific build ID; leave empty for latest successful default-branch build
+        required: false
         type: string
       verify_only:
         description: Check the build and files without uploading
@@ -72,6 +79,7 @@ jobs:
     uses: """ + PIPELINE + '/.github/workflows/vst-publish.yml@' + revision + """
     with:
       product-id: """ + product + """
+      build-selection: ${{ inputs.build_selection == 'Specific build ID' && 'specific' || 'latest' }}
       build-run-id: ${{ inputs.build_run_id }}
       verify-only: ${{ inputs.verify_only }}
     secrets:

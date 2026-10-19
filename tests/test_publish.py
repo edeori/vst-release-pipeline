@@ -38,3 +38,24 @@ class PublishTests(unittest.TestCase):
             report['result']='failed'
             (root/'report/result.json').write_text(json.dumps(report))
             with self.assertRaises(ValueError): verify(root)
+
+    def test_latest_ignores_failed_pr_and_other_branch_runs(self):
+        select = module('validate-publish').select_latest
+        def run(id, **extra):
+            return dict(id=id, created_at=f'2026-10-{id:02d}', event='workflow_dispatch',
+                        head_branch='main',status='completed',conclusion='success') | extra
+        rows=[run(1),run(2),run(3,event='pull_request'),run(4,conclusion='failure'),run(5,head_branch='dev')]
+        paths=[]
+        def api(path):
+            paths.append(path)
+            return {'workflow_runs':rows}
+        self.assertEqual(select(api,123,'main'),'2')
+        self.assertIn('branch=main',paths[0])
+        with self.assertRaises(ValueError): select(lambda _: {'workflow_runs':[]},123,'main')
+
+    def test_latest_does_not_choose_old_build_rerun(self):
+        select = module('validate-publish').select_latest
+        rows=[dict(id=1,created_at='2026-10-01',updated_at='2026-10-19'),
+              dict(id=2,created_at='2026-10-18',updated_at='2026-10-18')]
+        rows=[r | dict(event='push',head_branch='main',status='completed',conclusion='success') for r in rows]
+        self.assertEqual(select(lambda _: {'workflow_runs':rows},123,'main'),'2')
