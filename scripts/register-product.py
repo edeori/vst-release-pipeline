@@ -44,20 +44,63 @@ jobs:
 ''' + ''.join('      ' + name + ': ${{ secrets.' + name + ' }}\n' for name in SECRET_NAMES)
 
 
+def separate_callers(product, revision):
+    build = caller(product, revision)
+    begin = build.index('  workflow_dispatch:')
+    end = build.index('  push:', begin)
+    build = build[:begin] + '  workflow_dispatch:\n' + build[end:]
+    build = build.replace('name: Release installers', 'name: Build installers')
+    build = build.replace("publish: ${{ github.event_name == 'push' || inputs.publish }}", 'publish: false')
+    build = ''.join(line for line in build.splitlines(keepends=True) if 'MINIO_' not in line)
+    publish = """name: Publish installers
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful Build installers run ID to publish
+        required: true
+        type: string
+      verify_only:
+        description: Check the build and files without uploading
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish:
+    uses: """ + PIPELINE + '/.github/workflows/vst-publish.yml@' + revision + """
+    with:
+      product-id: """ + product + """
+      build-run-id: ${{ inputs.build_run_id }}
+      verify-only: ${{ inputs.verify_only }}
+    secrets:
+""" + ''.join('      ' + name + ': ${{ secrets.' + name + ' }}\n' for name in
+              ('REGISTRY_TOKEN', 'MINIO_ACCESS_KEY', 'MINIO_SECRET_KEY'))
+    return build, publish
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('product')
     parser.add_argument('repository')
     parser.add_argument('--checkout', required=True, type=Path)
     parser.add_argument('--server', default='mothstack')
+    parser.add_argument('--publication-mode', choices=('gated', 'separate'), default='gated')
     args = parser.parse_args()
     if not re.fullmatch(r'edeori/[A-Za-z0-9_.-]+', args.repository):
         raise ValueError('Expected an edeori source repository')
     revision = gh('api', f'repos/{PIPELINE}/commits/main', '--jq', '.sha').strip()
     contents = caller(args.product, revision)
+    publish_contents = None
+    if args.publication_mode == 'separate':
+        contents, publish_contents = separate_callers(args.product, revision)
     target = args.checkout.resolve() / '.github/workflows/release.yml'
     if target.exists() and target.read_text() != contents:
         raise ValueError('Caller workflow already exists; review and update it manually')
+    publish_target = target.with_name('publish.yml')
+    if publish_contents and publish_target.exists() and publish_target.read_text() != publish_contents:
+        raise ValueError('Publish workflow already exists; review manually')
     remote = subprocess.check_output(['git', '-C', str(args.checkout), 'remote', 'get-url', 'origin'], text=True).strip()
     if remote.removesuffix('.git') not in [f'https://github.com/{args.repository}', f'git@github.com:{args.repository}']:
         raise ValueError('Checkout origin does not match the requested repository')
@@ -74,17 +117,18 @@ def main():
                                      headers={'Authorization': 'Bearer ' + token})
     with urllib.request.build_opener(NoRedirect).open(request, timeout=30) as response:
         validate(json.load(response), args.product, args.repository)
-    reviewer = json.loads(gh('api', 'user'))
-    protection = {'wait_timer': 0, 'prevent_self_review': False,
-                  'reviewers': [{'type': 'User', 'id': reviewer['id']}], 'can_admins_bypass': False}
-    try:
-        environment = json.loads(gh('api', '--method', 'PUT',
-            f'repos/{args.repository}/environments/production', '--input', '-', value=json.dumps(protection)))
-    except subprocess.CalledProcessError:
-        raise SystemExit('Could not configure required publish reviewers. Check GitHub plan support (especially for private repositories); no release credentials were changed.') from None
-    rules = environment.get('protection_rules', [])
-    if not any(rule.get('type') == 'required_reviewers' and rule.get('reviewers') for rule in rules):
-        raise SystemExit('Required publish reviewer was not configured; refusing unprotected publication setup.')
+    if args.publication_mode == 'gated':
+        reviewer = json.loads(gh('api', 'user'))
+        protection = {'wait_timer': 0, 'prevent_self_review': False,
+                      'reviewers': [{'type': 'User', 'id': reviewer['id']}], 'can_admins_bypass': False}
+        try:
+            environment = json.loads(gh('api', '--method', 'PUT',
+                f'repos/{args.repository}/environments/production', '--input', '-', value=json.dumps(protection)))
+        except subprocess.CalledProcessError:
+            raise SystemExit('Could not configure required publish reviewers. Check GitHub plan support (especially for private repositories); no release credentials were changed.') from None
+        rules = environment.get('protection_rules', [])
+        if not any(rule.get('type') == 'required_reviewers' and rule.get('reviewers') for rule in rules):
+            raise SystemExit('Required publish reviewer was not configured; refusing unprotected publication setup.')
     storage = subprocess.check_output(['ssh', args.server, 'python3', '-', args.product],
                                       input=(ROOT / 'scripts/provision-storage.py').read_text(), text=True)
     credentials = json.loads(storage)
@@ -94,6 +138,8 @@ def main():
         gh('secret', 'set', name, '--repo', args.repository, value=value)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(contents)
+    if publish_contents:
+        publish_target.write_text(publish_contents)
     print(f'{args.repository}: caller workflow and repository secrets configured.')
     print('Review, commit and push the caller and adapters in the VST repository. Run Actions there.')
 

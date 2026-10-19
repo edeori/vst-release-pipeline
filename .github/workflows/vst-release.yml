@@ -24,9 +24,9 @@ on:
       APPLE_TEAM_ID:
         required: true
       MINIO_ACCESS_KEY:
-        required: true
+        required: false
       MINIO_SECRET_KEY:
-        required: true
+        required: false
 permissions:
   contents: read
 concurrency:

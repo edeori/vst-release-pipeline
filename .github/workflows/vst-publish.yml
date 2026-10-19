@@ -1,0 +1,95 @@
+name: Publish existing VST installers
+on:
+  workflow_call:
+    inputs:
+      product-id:
+        required: true
+        type: string
+      build-run-id:
+        required: true
+        type: string
+      verify-only:
+        description: Validate the build and files without uploading
+        type: boolean
+        default: false
+    secrets:
+      REGISTRY_TOKEN:
+        required: true
+      MINIO_ACCESS_KEY:
+        required: true
+      MINIO_SECRET_KEY:
+        required: true
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: vst-release-${{ github.repository }}-${{ inputs.product-id }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          repository: edeori/vst-release-pipeline
+          ref: 15459abacd00d9781f7a61fda6ded2d1770d42af
+          path: pipeline
+          persist-credentials: false
+      - name: Validate build provenance
+        id: build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN_ID: ${{ inputs.build-run-id }}
+        run: python3 pipeline/scripts/validate-publish.py
+      - name: Resolve publication destinations
+        id: registry
+        env:
+          PRODUCT_ID: ${{ inputs.product-id }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+        run: python3 pipeline/scripts/registry.py
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: installer-${{ inputs.product-id }}-mac
+          path: dist
+          run-id: ${{ inputs.build-run-id }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: installer-${{ inputs.product-id }}-windows
+          path: dist
+          run-id: ${{ inputs.build-run-id }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: defender-${{ inputs.product-id }}-windows
+          path: dist/report
+          run-id: ${{ inputs.build-run-id }}
+          github-token: ${{ github.token }}
+      - name: Verify installers and Defender result
+        run: python3 pipeline/scripts/verify-publish-files.py
+      - name: Publish verified installers
+        if: ${{ !inputs.verify-only }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.MINIO_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_EC2_METADATA_DISABLED: 'true'
+          BUCKET: ${{ steps.registry.outputs.bucket }}
+          MAC_KEY: ${{ steps.registry.outputs.mac_key }}
+          WINDOWS_KEY: ${{ steps.registry.outputs.windows_key }}
+        run: |
+          set -euo pipefail
+          aws configure set default.s3.addressing_style path
+          endpoint=https://download.mothproduction.hu
+          aws --endpoint-url "$endpoint" s3 cp dist/installer.pkg "s3://$BUCKET/$MAC_KEY" --cache-control no-cache --only-show-errors
+          aws --endpoint-url "$endpoint" s3 cp dist/installer.exe "s3://$BUCKET/$WINDOWS_KEY" --cache-control no-cache --only-show-errors
+      - name: Record result
+        env:
+          SOURCE_SHA: ${{ steps.build.outputs.source_sha }}
+          BUILD_RUN_ID: ${{ inputs.build-run-id }}
+          VERIFY_ONLY: ${{ inputs.verify-only }}
+        run: |
+          printf 'Build: %s\nSource: %s\nVerify only (no upload): %s\n' "$BUILD_RUN_ID" "$SOURCE_SHA" "$VERIFY_ONLY" >> "$GITHUB_STEP_SUMMARY"
+          sha256sum dist/installer.pkg dist/installer.exe >> "$GITHUB_STEP_SUMMARY"
