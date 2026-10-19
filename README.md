@@ -98,3 +98,9 @@ python3 scripts/register-product.py deathwings edeori/DeathWings-VST --checkout 
 ```
 
 A StringLife meglévő environment-jóváhagyásos működése változatlan. A DeathWings a külön publikálási módot használja és privát marad.
+
+## Legutóbbi sikeres build kiválasztása
+
+A külön Publish hívók `build_selection` legördülője alapértelmezetten **Latest successful build**. A `build_run_id` ilyenkor üres marad. A közös validator a hívó repo alapértelmezett ágának legutóbb létrehozott sikeres `release.yml` futását választja, PR-futások nélkül. Régi build újrafuttatása nem teszi azt a legújabbá. A kiválasztás végrehajtáskor történik; az egyszer feloldott futásazonosítót használja minden artifactletöltés és az eredményösszesítő. Hiányzó/lejárt artifact esetén nincs automatikus visszalépés korábbi buildre.
+
+A **Specific build ID** opcióval konkrét korábbi vagy tagről készült build is kiválasztható. A `verify_only` mindkét móddal működik. Az új opció bekötve: DeathWings, WhammyDT/WhirlDT és Swarm. A regisztráló script új külön Publish workflow-kat is ezzel a felülettel generál. A StringLife meglévő, egy workflow-n belüli jóváhagyásos publikálása nem változott.
