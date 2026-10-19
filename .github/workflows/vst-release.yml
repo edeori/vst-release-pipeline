@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           repository: edeori/vst-release-pipeline
-          ref: 077905b05fc5c8d18854cb2625cc818a55ae1898 # Immutable shared helper revision
+          ref: 43371fd67c08f4834f1422231c00157f1d19fa02 # Immutable shared helper revision
           path: pipeline
           persist-credentials: false
       - id: registry
@@ -68,7 +68,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           repository: edeori/vst-release-pipeline
-          ref: 077905b05fc5c8d18854cb2625cc818a55ae1898 # Immutable shared helper revision
+          ref: 43371fd67c08f4834f1422231c00157f1d19fa02 # Immutable shared helper revision
           path: pipeline
           persist-credentials: false
       - uses: actions/checkout@v7.0.1
@@ -109,6 +109,19 @@ jobs:
           ./ci/package-windows.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Windows packaging failed' }
           if (!(Test-Path dist/installer.exe) -or (Get-Item dist/installer.exe).Length -eq 0) { throw 'Missing Windows installer' }
+      - name: Scan Windows release with Microsoft Defender
+        if: runner.os == 'Windows'
+        timeout-minutes: 15
+        shell: pwsh
+        run: ./pipeline/scripts/defender-scan.ps1 -SourcePath source -ReportPath "${{ runner.temp }}/defender-report"
+      - name: Upload Defender report
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: defender-${{ inputs.product-id }}-windows
+          path: ${{ runner.temp }}/defender-report
+          if-no-files-found: warn
+          retention-days: 30
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: installer-${{ inputs.product-id }}-${{ matrix.platform }}

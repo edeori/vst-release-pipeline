@@ -74,3 +74,9 @@ A reusable workflow Node.js 24-alapú actionöket használ: checkout 7.0.1, uplo
 A közös workflow publish jobja a hívó repó `production` environmentjét használja. Az environment nevének megadása önmagában nem jelent védelmet: kötelező reviewer-szabály is szükséges. A regisztráló script ezt létrehozza és ellenőrzi, hibánál leáll.
 
 GitHub Free/Pro/Team csomagokban a required reviewers védelem csak publikus repókhoz érhető el. Privát repóknál az előfizetés támogatását külön ellenőrizni kell; enélkül külön manuális publikáló workflow szükséges, nem szabad védtelen environmenttel helyettesíteni a jóváhagyást. A privát repók közös buildje ettől függetlenül működhet. Lásd: https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments .
+
+## Windows Defender ellenőrzés
+
+A Windows csomagolás után kötelező Defender-vizsgálat fut a teljes forrás- és buildkönyvtáron, beleértve a kicsomagolt pluginbinárisokat és a végleges telepítőt. A script frissíti a vírusadatbázist, ellenőrzi az aktív antivírust és az adatbázis frissességét (legfeljebb 48 óra). A custom scan figyelmen kívül hagyja a kizárásokat, archívumokat is vizsgál, és nem végez automatikus javítást. Találat, frissítési hiba, hiányzó Defender vagy időtúllépés blokkolja a telepítő artifactját és a publikálást.
+
+A `defender-<termék>-windows` artifact tartalmazza az eredményt, a motor/adatbázis verzióját, az EXE SHA-256 értékét és a vizsgálat kimenetét. Az ellenőrzés nem jelent Microsoft-jóváhagyást vagy SmartScreen-reputációt; a Windows-telepítő továbbra is aláíratlan.
