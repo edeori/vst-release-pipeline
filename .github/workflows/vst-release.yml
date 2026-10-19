@@ -1,69 +1,59 @@
-name: Build VST installers
-run-name: '${{ inputs.product }} / ${{ inputs.ref }} / publish=${{ inputs.publish }}'
+name: Reusable VST release
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      product:
-        description: Product ID registered in products.json and the Shop
+      product-id:
+        description: Product ID registered in the Shop
         required: true
-        default: stringlife
-        type: string
-      ref:
-        description: Source branch, tag, or commit SHA
-        required: true
-        default: main
         type: string
       publish:
         description: Replace live installers after both builds succeed
         type: boolean
         default: false
+    secrets:
+      REGISTRY_TOKEN:
+        required: true
+      APPLE_CERTIFICATES_P12:
+        required: true
+      APPLE_CERTIFICATES_PASSWORD:
+        required: true
+      APPLE_ID:
+        required: true
+      APPLE_APP_PASSWORD:
+        required: true
+      APPLE_TEAM_ID:
+        required: true
+      MINIO_ACCESS_KEY:
+        required: true
+      MINIO_SECRET_KEY:
+        required: true
 permissions:
   contents: read
 concurrency:
-  group: release-${{ inputs.product }}
+  group: vst-release-${{ github.repository }}-${{ inputs.product-id }}
   cancel-in-progress: false
 jobs:
   prepare:
     runs-on: ubuntu-24.04
-    environment: ${{ inputs.product }}
     outputs:
-      repository: ${{ steps.source.outputs.repository }}
-      sha: ${{ steps.commit.outputs.sha }}
       bucket: ${{ steps.registry.outputs.bucket }}
       mac-key: ${{ steps.registry.outputs.mac_key }}
       windows-key: ${{ steps.registry.outputs.windows_key }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
+          repository: edeori/vst-release-pipeline
+          ref: 077905b05fc5c8d18854cb2625cc818a55ae1898 # Immutable shared helper revision
           path: pipeline
           persist-credentials: false
-      - id: source
-        env:
-          PRODUCT_ID: ${{ inputs.product }}
-        run: python3 pipeline/scripts/resolve.py
       - id: registry
         env:
-          PRODUCT_ID: ${{ inputs.product }}
-          SOURCE_REPOSITORY: ${{ steps.source.outputs.repository }}
+          PRODUCT_ID: ${{ inputs.product-id }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
           REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
         run: python3 pipeline/scripts/registry.py
-      - uses: actions/checkout@v7.0.1
-        with:
-          repository: ${{ steps.source.outputs.repository }}
-          ref: ${{ inputs.ref }}
-          ssh-key: ${{ secrets.SOURCE_SSH_KEY }}
-          persist-credentials: false
-          path: source
-      - id: commit
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f source/ci/package-mac.sh
-          test -f source/ci/package-windows.ps1
-          echo "sha=$(git -C source rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   build:
     needs: prepare
-    environment: ${{ inputs.product }}
     strategy:
       fail-fast: false
       matrix:
@@ -77,13 +67,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with:
+          repository: edeori/vst-release-pipeline
+          ref: 077905b05fc5c8d18854cb2625cc818a55ae1898 # Immutable shared helper revision
           path: pipeline
           persist-credentials: false
       - uses: actions/checkout@v7.0.1
         with:
-          repository: ${{ needs.prepare.outputs.repository }}
-          ref: ${{ needs.prepare.outputs.sha }}
-          ssh-key: ${{ secrets.SOURCE_SSH_KEY }}
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: recursive
           path: source
@@ -120,7 +111,7 @@ jobs:
           if (!(Test-Path dist/installer.exe) -or (Get-Item dist/installer.exe).Length -eq 0) { throw 'Missing Windows installer' }
       - uses: actions/upload-artifact@v7.0.2
         with:
-          name: installer-${{ matrix.platform }}
+          name: installer-${{ inputs.product-id }}-${{ matrix.platform }}
           path: source/dist/installer.${{ matrix.platform == 'mac' && 'pkg' || 'exe' }}
           if-no-files-found: error
           retention-days: 30
@@ -132,13 +123,12 @@ jobs:
   publish:
     if: inputs.publish
     needs: [prepare, build]
-    environment: ${{ inputs.product }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/download-artifact@v8.0.2
         with:
-          pattern: installer-*
+          pattern: installer-${{ inputs.product-id }}-*
           path: dist
           merge-multiple: true
       - name: Upload installers
@@ -150,7 +140,7 @@ jobs:
           BUCKET: ${{ needs.prepare.outputs.bucket }}
           MAC_KEY: ${{ needs.prepare.outputs.mac-key }}
           WINDOWS_KEY: ${{ needs.prepare.outputs.windows-key }}
-          SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
+          SOURCE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           test -s dist/installer.pkg

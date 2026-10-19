@@ -1,55 +1,62 @@
-# Moth Production — központi VST build
+# Moth Production — közös VST release workflow
 
-Privát build-repó: a macOS és Windows kiadás itt fut, a pluginforrás másik, publikus vagy privát repóban maradhat. A `products.json` rendeli a Shop termékazonosítót a forrásrepóhoz. A workflow mindkét platformon ugyanazt a feloldott commitot építi.
+Publikus, újrafelhasználható GitHub Actions workflow macOS és Windows telepítők építéséhez. Publikus és privát VST-repók egyaránt hívhatják. **A build, a naplók és az artifactok a hívó VST-repó Actions felületén jelennek meg.** Ez a repó csak a közös kódot tartalmazza; kiadási titkokat nem tárol.
 
-## Build indítása
+## Felépítés
 
-Actions → **Build VST installers** → Run workflow:
+- Közös pipeline: `.github/workflows/vst-release.yml`, `workflow_call` belépési ponttal.
+- Minden VST saját hívója: `.github/workflows/release.yml`.
+- A hívó megadja a Shop termékazonosítóját és átadja a saját GitHub Secrets értékeit.
+- Mindkét platform a hívó eseményhez tartozó változatlan `github.sha` forráscommitot építi. A közös helper scriptek külön, rögzített commitról érkeznek.
+- A workflow nem tölti le más privát repó pluginforrását: minden hívó a saját `GITHUB_TOKEN` tokenjét használja.
 
-- `product`: például `stringlife`.
-- `ref`: forráság, tag vagy commit SHA, például `main` vagy `v1.6.3`.
-- `publish`: kikapcsolva tesztbuild; bekapcsolva mindkét sikeres build után éles MinIO-feltöltés.
+## StringLife indítása
 
-Parancssorból, bejelentkezett GitHub CLI-vel:
+A **StringLife-VST → Actions → Release installers → Run workflow** felületen. A `publish` alapértelmezetten kikapcsolt: csak GitHub artifactok készülnek. Bekapcsolva mindkét build sikere után lecseréli a MinIO telepítőket. Egy `v*` tag push automatikusan buildet és publikálást indít az adott VST-repóban.
 
-```sh
-python3 scripts/release.py stringlife --ref main
-python3 scripts/release.py stringlife --ref v1.6.3 --publish
-```
-
-A tesztbuild telepítői 30 napig a központi Actions-futás artifactjai között maradnak. A Windows telepítő jelenleg nem Authenticode-aláírt. A macOS aláírt és notarizált. A két MinIO-feltöltés nem atomi; részleges hiba esetén ugyanannak a futásnak a publish jobját indítsd újra. Régi futás újraindítása felülírhat újabb kiadást.
+Az artifactok 30 napig maradnak meg. A macOS csomag aláírt és notarizált, a Windows telepítő jelenleg nem Authenticode-aláírt. A két MinIO-objektum feltöltése nem atomi; részleges hiba esetén a publish jobot futtasd újra. Régi futás újraindítása felülírhat újabb kiadást.
 
 ## Új VST bekötése
 
-1. A forrásrepóban legyen `ci/package-mac.sh` és `ci/package-windows.ps1`. A példák az `examples/` alatt indulási minták; a projektre kell igazítani őket. Commitold és pushold az adaptereket.
-2. A Shopban állítsd be a termékazonosítót, a `release_repository` mezőt (`edeori/RepoName`), a `release_enabled` kapcsolót és a két állandó letöltési URL-t. A registry ellenőrzi a termékhez tartozó `plugins/<id>/mac/*.pkg`, `plugins/<id>/win/*.exe` útvonalakat (az `apps/` prefix is támogatott). A fájlnevekben ne legyen ponttal elválasztott verzió. A termék közzétételét csak a működő letöltések után végezd el.
-3. Ezen a Macen, `gh` belépéssel és `mothstack` SSH-hozzáféréssel:
+1. A VST-ben legyen `ci/package-mac.sh` és `ci/package-windows.ps1`. Az `examples/` mintáit igazítsd a projekthez.
+2. A Shopban állítsd be a termékazonosítót, a `release_repository` mezőt (`edeori/RepoName`), a `release_enabled` kapcsolót és a két állandó telepítő-URL-t. Engedélyezett útvonal: `downloads/plugins/<id>/mac/<név>.pkg` és `downloads/plugins/<id>/win/<név>.exe` (`apps/` is támogatott). Ponttal elválasztott verzió ne kerüljön a fájlnévbe. A terméket működő letöltések után publikáld.
+3. Ezen a Macen, bejelentkezett `gh` CLI-vel és `mothstack` SSH-hozzáféréssel:
 
 ```sh
-python3 scripts/register-product.py phaselock edeori/PhaseLock-VST
-git add products.json
-git commit -m 'Register PhaseLock release builds'
-git push
-python3 scripts/release.py phaselock
+python3 scripts/register-product.py phaselock edeori/PhaseLock-VST --checkout ../PhaseLock-VST
 ```
 
-A regisztráló script előbb ellenőrzi az élő Shop-konfigurációt és az adaptereket. Ezután létrehozza a központi repó termékhez tartozó environmentjét, egy olvasási deploy keyt a forrásrepóhoz, és egy kizárólag a termék MinIO-prefixére jogosult felhasználót. Ismételt regisztráció lecseréli a hozzáféréseket; ne futtasd aktív kiadás közben. A Shop tartalmát nem írja át. A git commit/push külön lépés.
+A script ellenőrzi a helyi repót, az adaptereket és az élő Shop-registryt; létrehoz egy termékre korlátozott MinIO-felhasználót; beállítja a **VST-repó** secrets értékeit; és létrehozza annak `.github/workflows/release.yml` fájlját, teljes commit SHA-val rögzített közös workflow-hivatkozással. A meglévő eltérő hívófájlt nem írja felül. A Shop adatait nem módosítja. Regisztrációt ne futtass aktív kiadás közben, mert a MinIO-hozzáférést cseréli.
+
+4. Nézd át, commitold és pushold a hívófájlt és az adaptereket **a VST-repóban**, majd ott indíts tesztet az Actions felületen.
+
+A közös workflow frissítésekor a hívó `uses:` sorában kell az új, ellenőrzött commit SHA-ra váltani. Egy központi módosítás így nem változtatja meg váratlanul az összes VST kiadását.
 
 ## Adapterek szerződése
 
-- Munkakönyvtár: a forrásrepó gyökere.
-- Mac: `bash ci/package-mac.sh` → nem üres `dist/installer.pkg`. `NOTARY_PROFILE=ci-notary` már be van állítva; a tanúsítványokat a központi workflow importálja. A projekt csomagolójának ezt a profilt kell használnia, a csomagot alá kell írnia és notarizálnia.
-- Windows: `pwsh ci/package-windows.ps1` → nem üres `dist/installer.exe`. Minden natív parancs hibakódját ellenőrizze az adapter. Inno Setup a Windows runneren elérhető, de a projekt telepítősablonját külön kell biztosítani.
-- A központi pipeline nem feltételezi a JUCE-target nevét, a licensing kapcsolót, a build profilját vagy az installer belső felépítését.
-- A forrásrepó deploy keyje csak azt az egy repót olvassa. Másik privát repóban lévő submodule/dependency külön hozzáférést igényel.
+- Munkakönyvtár: a VST forrásrepójának gyökere.
+- Mac: `bash ci/package-mac.sh` → nem üres `dist/installer.pkg`. A workflow importálja a tanúsítványokat és beállítja a `NOTARY_PROFILE=ci-notary` értéket. A projekt csomagolója ezzel írja alá, notarizálja és staplingeli a telepítőt; ezt a közös workflow utána ellenőrzi.
+- Windows: `pwsh ci/package-windows.ps1` → nem üres `dist/installer.exe`. Az adapter ellenőrizze minden natív parancs hibakódját. A projekt Inno Setup sablonját külön biztosítani kell.
+- A JUCE-target neve, licensing kapcsoló, buildprofil és telepítőstruktúra projektenként változhat; ezeket az adapterek kezelik.
+- Más privát repóban lévő submodule/dependency külön olvasási hozzáférést igényel.
 
-## Hitelesítők
+## Titkok és helyi beállítás
 
-Központi repository secrets: `REGISTRY_TOKEN`, `APPLE_CERTIFICATES_P12`, `APPLE_CERTIFICATES_PASSWORD`, `APPLE_ID`, `APPLE_APP_PASSWORD`, `APPLE_TEAM_ID`.
+Minden hívó VST-repóban szükséges: `REGISTRY_TOKEN`, `APPLE_CERTIFICATES_P12`, `APPLE_CERTIFICATES_PASSWORD`, `APPLE_ID`, `APPLE_APP_PASSWORD`, `APPLE_TEAM_ID`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`. Opcionális repository variables: `CODESIGN_IDENTITY`, `INSTALLER_IDENTITY`.
 
-Termékenkénti environment secrets: `SOURCE_SSH_KEY`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`. A forrásrepókban nem kell Apple- vagy MinIO-titkot tárolni. Opcionális központi variables: `CODESIGN_IDENTITY`, `INSTALLER_IDENTITY`.
+Ezen a Macen a közös Apple-beállítás a login Kulcskarikában, `moth-vst-release-ci` szolgáltatásnéven található. A regisztráló script innen olvassa és közvetlenül a célrepó Secrets beállításaiba tölti fel. A jelszavakat nem írja a gitbe vagy a konzolra. A `moth-notary` helyi notarizációs profilt nem módosítja.
 
-A forráskód és adapterei a buildben aláírókulcsot használhatnak, ezért csak megbízható saját commitot építs. Tetszőleges külső repó nem adható meg a workflow bemenetében: a központilag commitolt terméklista és az élő Shop-registry egyezése szükséges.
+Új Macen exportáld a Developer ID Application és Installer tanúsítványokat a privát kulcsaikkal együtt egy jelszóvédett P12 fájlba, majd:
+
+```sh
+python3 scripts/setup-apple.py --p12 /biztonsagos/hely/signing.p12 --apple-id YOUR_APPLE_ID --team-id YOUR_TEAM_ID
+```
+
+A script rejtetten bekéri a P12-jelszót és az Apple app-jelszót, ellenőrzi a notarizációs hozzáférést és a helyi Kulcskarikába ment. Apple app-jelszó cseréjekor a már beállított Macen:
+
+```sh
+python3 scripts/setup-apple.py --repository edeori/StringLife-VST --repository edeori/PhaseLock-VST
+```
 
 ## Ellenőrzés
 
@@ -58,10 +65,4 @@ PYTHONPATH=scripts python3 -m unittest discover -s tests
 bash -n scripts/apple-signing.sh examples/package-mac.sh
 ```
 
-A központi workflow manuálisan vagy a `scripts/release.py` parancsból indul. A forrásrepók tag-push eseménye önmagában nem indít központi buildet. Ehhez később külön, hitelesített indítót kell bekötni; a forrásrepó alapértelmezett `GITHUB_TOKEN` tokenje nem indíthat workflow-t ebben a másik privát repóban.
-
-## Ellenőrzött első futás
-
-2026-10-19: [StringLife központi tesztbuild](https://github.com/edeori/vst-release-pipeline/actions/runs/39248988586) sikeres. Forráscommit: `8543b16`, CMake-verzió: `1.6.2`. A registry és a forrásolvasás működött; a Windows `.exe` és a macOS `.pkg` artifact elkészült; a macOS aláírás és notarizáció ellenőrzése sikeres. A `publish` ki volt kapcsolva, ezért ez a futás nem cserélte le az éles MinIO-objektumokat.
-
-Az Apple app-jelszó cseréjéhez ezen a Macen: `bash scripts/set-apple-password.sh`. A script rejtetten bekéri, Apple-nél ellenőrzi, majd közvetlenül a központi GitHub secretbe menti. A helyi `moth-notary` profilt nem módosítja.
+A reusable workflow Node.js 24-alapú actionöket használ: checkout 7.0.1, upload-artifact 7.0.2, download-artifact 8.0.2. A korábbi központi teszt 2026-10-19-én mindkét platformon sikeres volt; az átállás utáni teszt már a StringLife Actions felületén fut.
