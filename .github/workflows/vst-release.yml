@@ -71,6 +71,7 @@ jobs:
           path: release-metadata.json
           if-no-files-found: error
           retention-days: 30
+          overwrite: true
   build:
     needs: prepare
     strategy:
@@ -141,12 +142,14 @@ jobs:
           path: ${{ runner.temp }}/defender-report
           if-no-files-found: warn
           retention-days: 30
+          overwrite: true
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: installer-${{ inputs.product-id }}-${{ matrix.platform }}
           path: source/dist/installer.${{ matrix.platform == 'mac' && 'pkg' || 'exe' }}
           if-no-files-found: error
           retention-days: 30
+          overwrite: true
       - name: Remove temporary signing keychain
         if: always() && runner.os == 'macOS'
         run: |
