@@ -21,9 +21,12 @@ else:
 values['APPLE_ID'] = args.apple_id or values.get('APPLE_ID') or input('Apple ID: ').strip()
 values['APPLE_TEAM_ID'] = args.team_id or values.get('APPLE_TEAM_ID') or input('Apple Team ID: ').strip()
 values['APPLE_APP_PASSWORD'] = getpass.getpass('Apple app-specific password: ')
-subprocess.run(['xcrun', 'notarytool', 'history', '--apple-id', values['APPLE_ID'],
+validation = subprocess.run(['xcrun', 'notarytool', 'history', '--apple-id', values['APPLE_ID'],
                 '--team-id', values['APPLE_TEAM_ID'], '--password', values['APPLE_APP_PASSWORD']],
-               stdout=subprocess.DEVNULL, check=True)
+               stdout=subprocess.DEVNULL)
+if validation.returncode:
+    # A CalledProcessError would include --password in its printed command.
+    raise SystemExit('Apple validation failed; credentials were not saved.')
 subprocess.run(['swift', str(ROOT / 'scripts/keychain-secrets.swift'), 'store'],
                input=json.dumps(values), text=True, check=True)
 for repository in args.repository:
