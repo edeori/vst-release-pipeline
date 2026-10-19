@@ -66,3 +66,5 @@ bash -n scripts/apple-signing.sh examples/package-mac.sh
 ```
 
 A reusable workflow Node.js 24-alapú actionöket használ: checkout 7.0.1, upload-artifact 7.0.2, download-artifact 8.0.2. A korábbi központi teszt 2026-10-19-én mindkét platformon sikeres volt; az átállás utáni teszt már a StringLife Actions felületén fut.
+
+2026-10-19: a [StringLife saját Actions-futása](https://github.com/edeori/StringLife-VST/actions/runs/39251229057) a publikus reusable workflow-val sikeres. Mindkét platform telepítője elkészült, a macOS aláírás és notarizáció ellenőrzése sikeres, a GitHub jobok figyelmeztetés nélkül zárultak. Az éles MinIO-publikálás ki volt kapcsolva.
