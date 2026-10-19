@@ -26,8 +26,11 @@ with tempfile.TemporaryDirectory(prefix='vst-ci-') as directory:
     ]}
     (config / 'policy.json').write_text(json.dumps(policy))
     def mc(*args):
-        subprocess.run(['docker', 'run', '--rm', '--network', 'proxy', '-v', directory + ':/root/.mc',
-                        'minio/mc', *args], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        result = subprocess.run(['docker', 'run', '--rm', '--network', 'proxy', '-v', directory + ':/root/.mc',
+                                 'minio/mc', *args], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        if result.returncode:
+            # Never include the command: user-add arguments contain a credential.
+            raise RuntimeError('MinIO provisioning failed; inspect the server configuration')
     name = 'vst-ci-' + product
     password = secrets.token_urlsafe(36)
     mc('admin', 'policy', 'create', 'moth', name, '/root/.mc/policy.json')
