@@ -33,7 +33,7 @@ jobs:
       mac-key: ${{ steps.registry.outputs.mac_key }}
       windows-key: ${{ steps.registry.outputs.windows_key }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           path: pipeline
           persist-credentials: false
@@ -47,7 +47,7 @@ jobs:
           SOURCE_REPOSITORY: ${{ steps.source.outputs.repository }}
           REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
         run: python3 pipeline/scripts/registry.py
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           repository: ${{ steps.source.outputs.repository }}
           ref: ${{ inputs.ref }}
@@ -75,11 +75,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           path: pipeline
           persist-credentials: false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           repository: ${{ needs.prepare.outputs.repository }}
           ref: ${{ needs.prepare.outputs.sha }}
@@ -118,7 +118,7 @@ jobs:
           ./ci/package-windows.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Windows packaging failed' }
           if (!(Test-Path dist/installer.exe) -or (Get-Item dist/installer.exe).Length -eq 0) { throw 'Missing Windows installer' }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: installer-${{ matrix.platform }}
           path: source/dist/installer.${{ matrix.platform == 'mac' && 'pkg' || 'exe' }}
@@ -136,7 +136,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8.0.2
         with:
           pattern: installer-*
           path: dist
