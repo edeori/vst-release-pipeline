@@ -59,3 +59,9 @@ bash -n scripts/apple-signing.sh examples/package-mac.sh
 ```
 
 A központi workflow manuálisan vagy a `scripts/release.py` parancsból indul. A forrásrepók tag-push eseménye önmagában nem indít központi buildet. Ehhez később külön, hitelesített indítót kell bekötni; a forrásrepó alapértelmezett `GITHUB_TOKEN` tokenje nem indíthat workflow-t ebben a másik privát repóban.
+
+## Ellenőrzött első futás
+
+2026-10-19: [StringLife központi tesztbuild](https://github.com/edeori/vst-release-pipeline/actions/runs/39248988586) sikeres. Forráscommit: `8543b16`, CMake-verzió: `1.6.2`. A registry és a forrásolvasás működött; a Windows `.exe` és a macOS `.pkg` artifact elkészült; a macOS aláírás és notarizáció ellenőrzése sikeres. A `publish` ki volt kapcsolva, ezért ez a futás nem cserélte le az éles MinIO-objektumokat.
+
+Az Apple app-jelszó cseréjéhez ezen a Macen: `bash scripts/set-apple-password.sh`. A script rejtetten bekéri, Apple-nél ellenőrzi, majd közvetlenül a központi GitHub secretbe menti. A helyi `moth-notary` profilt nem módosítja.
