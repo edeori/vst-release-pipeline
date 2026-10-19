@@ -130,3 +130,12 @@ A release-metadata artifact records trigger SHA, built SHA, version and run ID.
 Publish validates its binding and checks the version commit only changed
 CMakeLists.txt, then reports the actual source SHA. Older builds without metadata
 remain publishable using their original source SHA. Expired metadata fails.
+
+Automatic-version integration verified on 2026-10-19 using ParaDyn EQ:
+[build 39305139718](https://github.com/edeori/parametric-dynamic-eq-VST/actions/runs/39305139718)
+reserved 0.1.2 in commit `35235e3ade46bc4d1050a6296d3bcc385c1eda0a`.
+Both platforms passed, including licensing checks, Apple notarization and Defender.
+Downloaded Windows ProductVersion, Mac package version and all three Mac bundle
+versions were checked as 0.1.2.
+[Publish verification 39305375515](https://github.com/edeori/parametric-dynamic-eq-VST/actions/runs/39305375515)
+validated the reserved commit/version and both installers; live upload was skipped.
