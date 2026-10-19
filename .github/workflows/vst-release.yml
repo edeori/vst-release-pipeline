@@ -34,8 +34,12 @@ concurrency:
   cancel-in-progress: false
 jobs:
   prepare:
+    permissions:
+      contents: write
     runs-on: ubuntu-24.04
     outputs:
+      source_sha: ${{ steps.version.outputs.source_sha }}
+      version: ${{ steps.version.outputs.version }}
       bucket: ${{ steps.registry.outputs.bucket }}
       mac-key: ${{ steps.registry.outputs.mac_key }}
       windows-key: ${{ steps.registry.outputs.windows_key }}
@@ -43,7 +47,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           repository: edeori/vst-release-pipeline
-          ref: 26c33e2f8192c08b36105724317a4f029e66a760 # Immutable shared helper revision
+          ref: 9988ad31b617faa45c04a665c3c5a8973df43428 # Immutable shared helper revision
           path: pipeline
           persist-credentials: false
       - id: registry
@@ -52,6 +56,21 @@ jobs:
           SOURCE_REPOSITORY: ${{ github.repository }}
           REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
         run: python3 pipeline/scripts/registry.py
+      - uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          path: source
+          persist-credentials: true
+      - name: Reserve build version
+        id: version
+        run: python3 pipeline/scripts/version_build.py
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: release-metadata
+          path: release-metadata.json
+          if-no-files-found: error
+          retention-days: 30
   build:
     needs: prepare
     strategy:
@@ -68,13 +87,13 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           repository: edeori/vst-release-pipeline
-          ref: 26c33e2f8192c08b36105724317a4f029e66a760 # Immutable shared helper revision
+          ref: 9988ad31b617faa45c04a665c3c5a8973df43428 # Immutable shared helper revision
           path: pipeline
           persist-credentials: false
       - uses: actions/checkout@v7.0.1
         with:
           repository: ${{ github.repository }}
-          ref: ${{ github.sha }}
+          ref: ${{ needs.prepare.outputs.source_sha }}
           persist-credentials: false
           submodules: recursive
           path: source
@@ -154,7 +173,7 @@ jobs:
           BUCKET: ${{ needs.prepare.outputs.bucket }}
           MAC_KEY: ${{ needs.prepare.outputs.mac-key }}
           WINDOWS_KEY: ${{ needs.prepare.outputs.windows-key }}
-          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
         run: |
           set -euo pipefail
           test -s dist/installer.pkg

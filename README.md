@@ -104,3 +104,29 @@ A StringLife meglévő environment-jóváhagyásos működése változatlan. A D
 A külön Publish hívók `build_selection` legördülője alapértelmezetten **Latest successful build**. A `build_run_id` ilyenkor üres marad. A közös validator a hívó repo alapértelmezett ágának legutóbb létrehozott sikeres `release.yml` futását választja, PR-futások nélkül. Régi build újrafuttatása nem teszi azt a legújabbá. A kiválasztás végrehajtáskor történik; az egyszer feloldott futásazonosítót használja minden artifactletöltés és az eredményösszesítő. Hiányzó/lejárt artifact esetén nincs automatikus visszalépés korábbi buildre.
 
 A **Specific build ID** opcióval konkrét korábbi vagy tagről készült build is kiválasztható. A `verify_only` mindkét móddal működik. Az új opció bekötve: DeathWings, WhammyDT/WhirlDT és Swarm. A regisztráló script új külön Publish workflow-kat is ezzel a felülettel generál. A StringLife meglévő, egy workflow-n belüli jóváhagyásos publikálása nem változott.
+
+## Automatic build versions
+
+New default-branch pushes and manual branch builds reserve the next CMake
+`project(... VERSION major.minor.patch)` patch number before either platform
+builds. The reservation is a GitHub Actions bot commit in the source branch;
+macOS and Windows both check out that exact commit. Callers grant contents:write,
+but only the prepare job writes source. Build jobs retain read permissions.
+
+Each run reserves `ci-build/<run-id>` atomically with its version commit. A rerun
+reuses that reservation, including after a failed build; patch numbers consumed
+by failed builds are not recycled. Bot commits include [skip ci], and token pushes
+do not recursively start another workflow. If the branch has advanced before
+reservation, the old run fails safely; start from the current branch. Concurrent
+pushes are never force-overwritten. Pull remote bot commits before further local
+pushes; do not discard unrelated local work to synchronize.
+
+Explicit `vMAJOR.MINOR.PATCH` tag builds keep their version and require the tag to
+match CMake exactly. They do not bump or move the release tag. Publish never bumps.
+In legacy gated mode only tag pushes request publication automatically; ordinary
+branch pushes build only. Separate Publish remains manual.
+
+A release-metadata artifact records trigger SHA, built SHA, version and run ID.
+Publish validates its binding and checks the version commit only changed
+CMakeLists.txt, then reports the actual source SHA. Older builds without metadata
+remain publishable using their original source SHA. Expired metadata fails.
