@@ -25,7 +25,7 @@ def main():
     if not re.fullmatch(r'[1-9][0-9]*', run_id):
         raise ValueError('Provide the numeric build run ID')
     def api(path):
-        return json.loads(subprocess.check_output(['gh', 'api', f'repos/{repository}/{path}']))
+        return json.loads(subprocess.check_output(['gh', 'api', f'repos/{repository}/{path}'.rstrip('/')]))
     repo = api('')
     if os.environ['GITHUB_EVENT_NAME'] != 'workflow_dispatch' or os.environ['GITHUB_REF'] != 'refs/heads/' + repo['default_branch']:
         raise ValueError('Publish must be manually started from the default branch')
