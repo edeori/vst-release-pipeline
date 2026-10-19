@@ -86,3 +86,15 @@ A `Test Defender scanner` kézzel indítható karbantartási workflow a már pub
 2026-10-19: a [scanner integrációs tesztje](https://github.com/edeori/vst-release-pipeline/actions/runs/39255915956) sikeres: a publikált EXE tiszta, az EICAR-tesztfájl `Virus:DOS/EICAR_Test_File` észlelést és blokkoló 2-es kilépési kódot adott. A GitHub runneren tapasztalt PowerShell `Update-MpSignature` RPC-hiba miatt a frissítés a natív `MpCmdRun -SignatureUpdate -MMPC` parancsot használja, legfeljebb három próbálkozással.
 
 A [StringLife teljes buildtesztjének](https://github.com/edeori/StringLife-VST/actions/runs/39255855252) Windows-jobja sikeres: a frissen fordított plugin és telepítő teljes buildkönyvtárának vizsgálata 20 másodperc alatt, találat nélkül lefutott. A teszt `publish=false` beállítással indult.
+
+## Külön kézi publikálás privát repókban
+
+A `register-product.py` `--publication-mode separate` kapcsolója két hívót hoz létre a VST-repóban: `release.yml` (Build installers) és `publish.yml` (Publish installers). A build mindig `publish: false`, és nem kap MinIO-titkokat. A Publish csak kézzel, a repó alapértelmezett ágáról indítható; indítása maga a kiadási jóváhagyás, nincs environment gate.
+
+A Publish `build_run_id` mezője a korábbi sikeres Build installers futás száma. A közös `vst-publish.yml` ellenőrzi a forrásrepót, a workflow-azonosítót, a futás sikerességét és az EXE egyezését a tiszta Defender-jelentéssel. Ugyanannak a futásnak a telepítőit tölti fel újrafordítás nélkül. A `verify_only` kapcsoló minden ellenőrzést és letöltést elvégez, de nem ír a MinIO-ra. Lejárt artifactból nem lehet publikálni. Régi sikeres futás kiválasztása szándékos visszaállítást tesz lehetővé.
+
+```sh
+python3 scripts/register-product.py deathwings edeori/DeathWings-VST --checkout ../DeathWings-VST --publication-mode separate
+```
+
+A StringLife meglévő environment-jóváhagyásos működése változatlan. A DeathWings a külön publikálási módot használja és privát marad.
