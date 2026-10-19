@@ -27,7 +27,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Replace live MinIO installers after both builds succeed
+        description: Request production approval after both builds succeed
         type: boolean
         default: false
   push:
