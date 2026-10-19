@@ -12,7 +12,7 @@ Publikus, újrafelhasználható GitHub Actions workflow macOS és Windows telep�
 
 ## StringLife indítása
 
-A **StringLife-VST → Actions → Release installers → Run workflow** felületen. A `publish` alapértelmezetten kikapcsolt: csak GitHub artifactok készülnek. Bekapcsolva mindkét build sikere után lecseréli a MinIO telepítőket. Egy `v*` tag push automatikusan buildet és publikálást indít az adott VST-repóban.
+A **StringLife-VST → Actions → Release installers → Run workflow** felületen. A `publish` alapértelmezetten kikapcsolt: csak GitHub artifactok készülnek. Bekapcsolva mindkét build sikere után a publish job kézi jóváhagyásra vár. Egy `v*` tag push automatikusan buildet indít, de az éles feltöltés akkor is jóváhagyást igényel. Az Actions futásban: **Review deployments → production → Approve and deploy**. StringLife esetén a kijelölt jóváhagyó `edeori`; a saját maga által indított kiadást is jóváhagyhatja, admin bypass nincs engedélyezve.
 
 Az artifactok 30 napig maradnak meg. A macOS csomag aláírt és notarizált, a Windows telepítő jelenleg nem Authenticode-aláírt. A két MinIO-objektum feltöltése nem atomi; részleges hiba esetén a publish jobot futtasd újra. Régi futás újraindítása felülírhat újabb kiadást.
 
@@ -26,7 +26,7 @@ Az artifactok 30 napig maradnak meg. A macOS csomag aláírt és notarizált, a 
 python3 scripts/register-product.py phaselock edeori/PhaseLock-VST --checkout ../PhaseLock-VST
 ```
 
-A script ellenőrzi a helyi repót, az adaptereket és az élő Shop-registryt; létrehoz egy termékre korlátozott MinIO-felhasználót; beállítja a **VST-repó** secrets értékeit; és létrehozza annak `.github/workflows/release.yml` fájlját, teljes commit SHA-val rögzített közös workflow-hivatkozással. A meglévő eltérő hívófájlt nem írja felül. A Shop adatait nem módosítja. Regisztrációt ne futtass aktív kiadás közben, mert a MinIO-hozzáférést cseréli.
+A script ellenőrzi a helyi repót, az adaptereket és az élő Shop-registryt; beállítja a `production` environment kötelező jóváhagyójának a bejelentkezett GitHub-felhasználót; létrehoz egy termékre korlátozott MinIO-felhasználót; beállítja a **VST-repó** secrets értékeit; és létrehozza annak `.github/workflows/release.yml` fájlját, teljes commit SHA-val rögzített közös workflow-hivatkozással. A meglévő eltérő hívófájlt nem írja felül. A Shop adatait nem módosítja. Regisztrációt ne futtass aktív kiadás közben, mert a MinIO-hozzáférést cseréli.
 
 4. Nézd át, commitold és pushold a hívófájlt és az adaptereket **a VST-repóban**, majd ott indíts tesztet az Actions felületen.
 
@@ -68,3 +68,9 @@ bash -n scripts/apple-signing.sh examples/package-mac.sh
 A reusable workflow Node.js 24-alapú actionöket használ: checkout 7.0.1, upload-artifact 7.0.2, download-artifact 8.0.2. A korábbi központi teszt 2026-10-19-én mindkét platformon sikeres volt; az átállás utáni teszt már a StringLife Actions felületén fut.
 
 2026-10-19: a [StringLife saját Actions-futása](https://github.com/edeori/StringLife-VST/actions/runs/39251229057) a publikus reusable workflow-val sikeres. Mindkét platform telepítője elkészült, a macOS aláírás és notarizáció ellenőrzése sikeres, a korábbi Node.js 20-as figyelmeztetés megszűnt (csak macOS runner-kapacitásról szóló tájékoztató notice maradt). Az éles MinIO-publikálás ki volt kapcsolva.
+
+## Publikálási jóváhagyás és privát repók
+
+A közös workflow publish jobja a hívó repó `production` environmentjét használja. Az environment nevének megadása önmagában nem jelent védelmet: kötelező reviewer-szabály is szükséges. A regisztráló script ezt létrehozza és ellenőrzi, hibánál leáll.
+
+GitHub Free/Pro/Team csomagokban a required reviewers védelem csak publikus repókhoz érhető el. Privát repóknál az előfizetés támogatását külön ellenőrizni kell; enélkül külön manuális publikáló workflow szükséges, nem szabad védtelen environmenttel helyettesíteni a jóváhagyást. A privát repók közös buildje ettől függetlenül működhet. Lásd: https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments .

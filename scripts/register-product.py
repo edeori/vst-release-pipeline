@@ -74,6 +74,17 @@ def main():
                                      headers={'Authorization': 'Bearer ' + token})
     with urllib.request.build_opener(NoRedirect).open(request, timeout=30) as response:
         validate(json.load(response), args.product, args.repository)
+    reviewer = json.loads(gh('api', 'user'))
+    protection = {'wait_timer': 0, 'prevent_self_review': False,
+                  'reviewers': [{'type': 'User', 'id': reviewer['id']}], 'can_admins_bypass': False}
+    try:
+        environment = json.loads(gh('api', '--method', 'PUT',
+            f'repos/{args.repository}/environments/production', '--input', '-', value=json.dumps(protection)))
+    except subprocess.CalledProcessError:
+        raise SystemExit('Could not configure required publish reviewers. Check GitHub plan support (especially for private repositories); no release credentials were changed.') from None
+    rules = environment.get('protection_rules', [])
+    if not any(rule.get('type') == 'required_reviewers' and rule.get('reviewers') for rule in rules):
+        raise SystemExit('Required publish reviewer was not configured; refusing unprotected publication setup.')
     storage = subprocess.check_output(['ssh', args.server, 'python3', '-', args.product],
                                       input=(ROOT / 'scripts/provision-storage.py').read_text(), text=True)
     credentials = json.loads(storage)
