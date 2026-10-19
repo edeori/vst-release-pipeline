@@ -18,7 +18,16 @@ try {
         Set-Service WinDefend -StartupType Manual
         Start-Service WinDefend
     }
-    Update-MpSignature -ErrorAction Stop
+    # A platform update can restart Defender and interrupt its WMI/RPC provider.
+    # Retry the native updater after that restart, but never accept stale signatures.
+    $fallbackScanner = "$env:ProgramFiles/Windows Defender/MpCmdRun.exe"
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        & $fallbackScanner -SignatureUpdate -MMPC 2>&1 | Tee-Object -FilePath (Join-Path $ReportPath 'update.log') -Append
+        $updateExit = $LASTEXITCODE
+        if ($updateExit -eq 0) { break }
+        if ($attempt -eq 3) { throw "Defender signature update failed (exit $updateExit)" }
+        Start-Sleep -Seconds 15
+    }
     $status = Get-MpComputerStatus
     if (!$status.AMServiceEnabled -or !$status.AntivirusEnabled) { throw 'Defender antivirus is not enabled' }
     if ($status.AntivirusSignatureLastUpdated -lt (Get-Date).AddDays(-2)) { throw 'Defender signatures are older than 48 hours' }

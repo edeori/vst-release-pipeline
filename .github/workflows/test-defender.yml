@@ -1,0 +1,26 @@
+name: Test Defender scanner
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download existing public installer for scanner integration test
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force sample/dist | Out-Null
+          Invoke-WebRequest https://download.mothproduction.hu/downloads/plugins/stringlife/win/StringLife-Setup-Win.exe -OutFile sample/dist/installer.exe
+      - name: Run scanner
+        shell: pwsh
+        run: ./scripts/defender-scan.ps1 -SourcePath sample -ReportPath "${{ runner.temp }}/defender-report"
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: defender-integration-report
+          path: ${{ runner.temp }}/defender-report
