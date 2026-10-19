@@ -80,3 +80,7 @@ GitHub Free/Pro/Team csomagokban a required reviewers védelem csak publikus rep
 A Windows csomagolás után kötelező Defender-vizsgálat fut a teljes forrás- és buildkönyvtáron, beleértve a kicsomagolt pluginbinárisokat és a végleges telepítőt. A script frissíti a vírusadatbázist, ellenőrzi az aktív antivírust és az adatbázis frissességét (legfeljebb 48 óra). A custom scan figyelmen kívül hagyja a kizárásokat, archívumokat is vizsgál, és nem végez automatikus javítást. Találat, frissítési hiba, hiányzó Defender vagy időtúllépés blokkolja a telepítő artifactját és a publikálást.
 
 A `defender-<termék>-windows` artifact tartalmazza az eredményt, a motor/adatbázis verzióját, az EXE SHA-256 értékét és a vizsgálat kimenetét. Az ellenőrzés nem jelent Microsoft-jóváhagyást vagy SmartScreen-reputációt; a Windows-telepítő továbbra is aláíratlan.
+
+A `Test Defender scanner` kézzel indítható karbantartási workflow a már publikált StringLife EXE-vel ellenőrzi a scannert, majd egy ártalmatlan EICAR tesztfájllal igazolja a blokkolást. Nem publikál és nem használ kiadási titkokat. A normál VST-build továbbra is a VST saját Actions felületén fut.
+
+2026-10-19: a [scanner integrációs tesztje](https://github.com/edeori/vst-release-pipeline/actions/runs/39255915956) sikeres: a publikált EXE tiszta, az EICAR-tesztfájl `Virus:DOS/EICAR_Test_File` észlelést és blokkoló 2-es kilépési kódot adott. A GitHub runneren tapasztalt PowerShell `Update-MpSignature` RPC-hiba miatt a frissítés a natív `MpCmdRun -SignatureUpdate -MMPC` parancsot használja, legfeljebb három próbálkozással.
