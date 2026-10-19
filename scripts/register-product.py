@@ -31,15 +31,16 @@ on:
         type: boolean
         default: false
   push:
+    branches: [main]
     tags: ['v*']
 permissions:
-  contents: read
+  contents: write
 jobs:
   release:
     uses: ''' + PIPELINE + '/.github/workflows/vst-release.yml@' + revision + '''
     with:
       product-id: ''' + product + '''
-      publish: ${{ github.event_name == 'push' || inputs.publish }}
+      publish: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.publish }}
     secrets:
 ''' + ''.join('      ' + name + ': ${{ secrets.' + name + ' }}\n' for name in SECRET_NAMES)
 
@@ -50,7 +51,7 @@ def separate_callers(product, revision):
     end = build.index('  push:', begin)
     build = build[:begin] + '  workflow_dispatch:\n' + build[end:]
     build = build.replace('name: Release installers', 'name: Build installers')
-    build = build.replace("publish: ${{ github.event_name == 'push' || inputs.publish }}", 'publish: false')
+    build = build.replace("publish: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.publish }}", 'publish: false')
     build = ''.join(line for line in build.splitlines(keepends=True) if 'MINIO_' not in line)
     publish = """name: Publish installers
 on:

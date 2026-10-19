@@ -13,7 +13,7 @@ class CallerTests(unittest.TestCase):
         self.assertIn('product-id: phaselock', text)
         self.assertIn('vst-release.yml@' + 'a' * 40, text)
         self.assertIn("tags: ['v*']", text)
-        self.assertIn("github.event_name == 'push' || inputs.publish", text)
+        self.assertIn("startsWith(github.ref, 'refs/tags/v') || inputs.publish", text)
         for name in register.SECRET_NAMES:
             self.assertIn(name + ': ${{ secrets.' + name + ' }}', text)
 

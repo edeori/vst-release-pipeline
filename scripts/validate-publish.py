@@ -3,6 +3,10 @@ import json
 import os
 import re
 import subprocess
+import tempfile
+from pathlib import Path
+import base64
+from version_build import version_text
 
 
 def validate(run, repository, workflow_id):
@@ -57,12 +61,45 @@ def main():
         run_id = select_latest(api, workflow['id'], repo['default_branch'])
     run = api('actions/runs/' + run_id)
     sha = validate(run, repository, workflow['id'])
+    trigger_sha = sha
+    version = ''
+    artifacts = api('actions/runs/' + run_id + '/artifacts?per_page=100')['artifacts']
+    metadata_artifacts = [a for a in artifacts if a['name'] == 'release-metadata']
+    if metadata_artifacts:
+        if len(metadata_artifacts) != 1 or metadata_artifacts[0].get('expired'):
+            raise ValueError('Build version metadata is expired or ambiguous')
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run(['gh', 'run', 'download', run_id, '--repo', repository,
+                            '--name', 'release-metadata', '--dir', directory], check=True)
+            metadata = json.loads((Path(directory) / 'release-metadata.json').read_text())
+        sha, version = validate_metadata(metadata, repository, run_id, trigger_sha)
+        commit = api('commits/' + sha)
+        if sha != trigger_sha:
+            if [p['sha'] for p in commit['parents']] != [trigger_sha]:
+                raise ValueError('Version commit does not descend directly from build trigger')
+            if [f['filename'] for f in commit['files']] != ['CMakeLists.txt']:
+                raise ValueError('Version commit modified unexpected files')
+        contents = api('contents/CMakeLists.txt?ref=' + sha)
+        text = base64.b64decode(contents['content']).decode()
+        if version_text(text)[1] != version:
+            raise ValueError('Artifact version differs from committed CMake VERSION')
     with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
-        out.write(f'source_sha={sha}\nrun_id={run_id}\n')
-    print(f'Validated successful build {run_id} from {sha}')
+        out.write(f'source_sha={sha}\ntrigger_sha={trigger_sha}\nrun_id={run_id}\nversion={version}\n')
+    print(f'Validated successful build {run_id} from {sha}, version {version or "legacy"}')
     if os.environ.get('GITHUB_STEP_SUMMARY'):
         with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-            summary.write(f'Selected build: https://github.com/{repository}/actions/runs/{run_id}\n\nSource commit: `{sha}`\n')
+            summary.write(f'Selected build: https://github.com/{repository}/actions/runs/{run_id}\n\nSource commit: `{sha}`\n\nVersion: {version or "legacy build (no version metadata)"}\n')
+
+
+def validate_metadata(metadata, repository, run_id, trigger_sha):
+    if (metadata.get('schema') != 1 or metadata.get('repository') != repository
+            or str(metadata.get('run_id')) != str(run_id)
+            or metadata.get('trigger_sha') != trigger_sha):
+        raise ValueError('Version metadata does not belong to this build')
+    sha, version = metadata.get('source_sha', ''), metadata.get('version', '')
+    if not re.fullmatch(r'[0-9a-f]{40}', sha) or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version):
+        raise ValueError('Invalid version metadata')
+    return sha, version
 
 
 if __name__ == '__main__':
