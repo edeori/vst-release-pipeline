@@ -19,8 +19,30 @@ jobs:
       - name: Run scanner
         shell: pwsh
         run: ./scripts/defender-scan.ps1 -SourcePath sample -ReportPath "${{ runner.temp }}/defender-report"
+      - name: Verify a detection blocks the release
+        shell: pwsh
+        run: |
+          # Standard harmless EICAR antivirus test file, never a release artifact.
+          $prefix = 'X5O!P%@AP[4\PZX54(P^)7CC)7}$'
+          $suffix = 'EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'
+          [IO.File]::WriteAllText((Join-Path $PWD 'sample/eicar.com'), $prefix + $suffix)
+          $blocked = $false
+          try {
+            ./scripts/defender-scan.ps1 -SourcePath sample -ReportPath "${{ runner.temp }}/defender-negative-report"
+          } catch {
+            $blocked = $true
+          }
+          $result = Get-Content "${{ runner.temp }}/defender-negative-report/result.json" | ConvertFrom-Json
+          if (!$blocked -or $result.result -ne 'failed' -or $result.scanExitCode -ne 2) {
+            throw 'EICAR test did not produce the expected blocking detection'
+          }
+          Write-Host 'Detection correctly blocked release.'
+          # The expected native scanner exit 2 must not fail this negative test step.
+          exit 0
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: defender-integration-report
-          path: ${{ runner.temp }}/defender-report
+          path: |
+            ${{ runner.temp }}/defender-report
+            ${{ runner.temp }}/defender-negative-report
