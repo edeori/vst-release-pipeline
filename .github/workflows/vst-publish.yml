@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           repository: edeori/vst-release-pipeline
-          ref: 15459abacd00d9781f7a61fda6ded2d1770d42af
+          ref: 7f11b3a43510d061135461d20c9ea77b14da7a5a
           path: pipeline
           persist-credentials: false
       - name: Validate build provenance
