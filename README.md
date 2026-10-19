@@ -84,3 +84,5 @@ A `defender-<termék>-windows` artifact tartalmazza az eredményt, a motor/adatb
 A `Test Defender scanner` kézzel indítható karbantartási workflow a már publikált StringLife EXE-vel ellenőrzi a scannert, majd egy ártalmatlan EICAR tesztfájllal igazolja a blokkolást. Nem publikál és nem használ kiadási titkokat. A normál VST-build továbbra is a VST saját Actions felületén fut.
 
 2026-10-19: a [scanner integrációs tesztje](https://github.com/edeori/vst-release-pipeline/actions/runs/39255915956) sikeres: a publikált EXE tiszta, az EICAR-tesztfájl `Virus:DOS/EICAR_Test_File` észlelést és blokkoló 2-es kilépési kódot adott. A GitHub runneren tapasztalt PowerShell `Update-MpSignature` RPC-hiba miatt a frissítés a natív `MpCmdRun -SignatureUpdate -MMPC` parancsot használja, legfeljebb három próbálkozással.
+
+A [StringLife teljes buildtesztjének](https://github.com/edeori/StringLife-VST/actions/runs/39255855252) Windows-jobja sikeres: a frissen fordított plugin és telepítő teljes buildkönyvtárának vizsgálata 20 másodperc alatt, találat nélkül lefutott. A teszt `publish=false` beállítással indult.
