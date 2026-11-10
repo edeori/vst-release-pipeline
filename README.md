@@ -139,3 +139,17 @@ Downloaded Windows ProductVersion, Mac package version and all three Mac bundle
 versions were checked as 0.1.2.
 [Publish verification 39305375515](https://github.com/edeori/parametric-dynamic-eq-VST/actions/runs/39305375515)
 validated the reserved commit/version and both installers; live upload was skipped.
+
+## macOS 15 signing compatibility (2026-11-10)
+
+New build callers use macOS 15, following GitHub's retirement of macOS 14.
+Combined PKCS12 import can omit usable identities on the newer runner. The
+shared Apple helper now matches certificates to private keys and imports one
+encrypted PKCS12 per identity. Plaintext keys remain in process memory; no
+credential values are logged. Both Application and Installer identities are
+required. Existing callers remain pinned until deliberately updated.
+
+The identity import and actual ONNX Runtime signing passed the isolated
+[Serpent signing probe](https://github.com/edeori/serpentTongue-VST/actions/runs/42840497333).
+The shared Python suite passed all 20 tests, including missing-key rejection
+and non-UTF-8 bag attributes.
